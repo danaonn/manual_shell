@@ -46,7 +46,7 @@ int process_two(char** arglist, int symbol_index){
         perror("fork failed");
         return 0;
     } if (pid_one == 0) {
-	    // grandchild1, will be process1
+	    // child1, will be process1
         if (signal(SIGINT, SIG_DFL) == SIG_ERR) { // change SIGINT action back to default
             perror("changing signal failed");
             exit(1);
@@ -54,11 +54,10 @@ int process_two(char** arglist, int symbol_index){
         close(readerfd);
         if (dup2(writerfd,1) == -1) { // pipe becomes the output for process1
             perror("dup2 failed");
-	        close(writerfd);
+	     close(writerfd);
             exit(1);
         }
-        close(writerfd);
-        if (execvp(arglist[0],arglist) == -1) { // grandchild1 becomes process1
+       if (execvp(arglist[0],arglist) == -1) { // grandchild1 becomes process1
             perror("execvp failed");
             exit(1);
         }
@@ -67,8 +66,9 @@ int process_two(char** arglist, int symbol_index){
     if (pid_two == -1){
         perror("fork failed");
         return 0;
-    } if (pid_two == 0){
-        // grandchild2, will be process 2
+    } 
+	if (pid_two == 0){
+        // child2, will be process 2
         if (signal(SIGINT, SIG_DFL) == SIG_ERR) { // change SIGINT action back to default
             perror("changing signal failed");
             exit(1);
@@ -80,20 +80,23 @@ int process_two(char** arglist, int symbol_index){
             close(readerfd);
             exit(1);
         }
-        close(readerfd);
         char** arglist2 = arglist + symbol_index + 1; // "|" is at index i, process2 starts at i+1
         if (execvp(arglist2[0],arglist2) == -1) { // child becomes process2
             perror("execvp failed");
             exit(1);
         }
     }
+    close(readerfd);
+    close(writerfd);
     int wait_one= waitpid(pid_one,NULL,WNOHANG | WUNTRACED);
+    if (wait_one == -1 &&  errno != ECHILD && errno != EINTR){
+	perror("waiting failed");
+         return 0;
+    }
     int wait_two= waitpid(pid_two,NULL,WNOHANG | WUNTRACED);
-    if (wait_one == -1 || wait_two == -1) {
-        if (errno != ECHILD || errno != EINTR) {
-            perror("waiting failed");
-            return 0;
-        }
+    if (wait_two == -1 && errno != ECHILD && errno != EINTR ) {
+            	perror("waiting failed");
+            	return 0;
     }
     return 1;
 }
@@ -134,13 +137,15 @@ int actual_processing(char** arglist, int cmd_type, int symbol_index){
         }
     }
     // Father process
-    if (cmd_type == 0 || cmd_type == 4){ // not pipe or &
-        int w = waitpid(-1,NULL,WNOHANG | WUNTRACED);
-        if (w == -1 && (errno != ECHILD || errno != EINTR)) {
-            perror("waiting failed");
-            return 0;
-        }
-    }
+    else{ 
+	if (cmd_type == 0 || cmd_type == 4){ // not pipe or &
+        	int w = waitpid(pid,NULL, WUNTRACED);
+        	if (w == -1 && errno != ECHILD && errno != EINTR) {
+            		perror("waiting failed");
+            		return 0;
+        	}
+    	}
+    }	
     return 1;
 }
 
