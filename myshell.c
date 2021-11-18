@@ -12,7 +12,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-/* if & is used- the parent does not wait for child, therefore a zombie will be created.
+/* if a child finished before the parent- a zombie is created.
+ * if the parent does not wait for child- the zombie is never erased.
  * this new handler for SIGCHLD "waits" for the finished child and therefore prevents zombies
  * reference: https://docs.oracle.com/cd/E19455-01/806-4750/signals-7/index.html
  */
