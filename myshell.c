@@ -12,14 +12,35 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+/* if & is used- the parent does not wait for child, therefore a zombie will be created.
+ * this new handler for SIGCHLD "waits" for the finished child and therefore prevents zombies
+ * reference: https://docs.oracle.com/cd/E19455-01/806-4750/signals-7/index.html
+ */
+void sigchld_handler(){
+    int errno_1 = errno;
+    while(waitpid(-1, 0, WNOHANG)>0){}
+    // if (waitpid(-1, 0, WNOHANG) == -1 && errno != ECHILD && errno != EINTR) {
+    //    perror("waiting failed");
+    //    exit(1);
+    // }
+    errno = errno_1;
+}
+
+
 /* behavior: changes the action for SIGINT (Cntr+C) to ignore instead of terminate
  * output: 1 when error, 0 on success (from 2.1 and  "Error handling 2" in assignment) */
 int prepare(void){
+    // Change Sigint
     if (signal(SIGINT, SIG_IGN) == SIG_ERR) {
         perror("changing signal failed");
         return 1;
     }
-    if (signal(SIGCLD, SIG_DFL) == SIG_ERR) {
+    // Change Sigcld
+    struct sigaction new_action;
+    memset(&new_action, 0, sizeof(new_action));
+    new_action.sa_handler = sigchld_handler;
+    sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+    if (sigaction(SIGCLD,&new_action,0) == -1) {
         perror("changing signal failed");
         return 1;
     }
@@ -62,8 +83,10 @@ int process_two(char** arglist, int symbol_index){
         close(readerfd);
         if (dup2(writerfd,1) == -1) { // pipe becomes the output for process1
             perror("dup2 failed");
+            close(writerfd);
             exit(1);
         }
+        close(writerfd);
         if (execvp(arglist[0],arglist) == -1) { // child1 becomes process1
             perror("execvp failed");
             exit(1);
@@ -79,9 +102,11 @@ int process_two(char** arglist, int symbol_index){
         SIGINT_action_to_SIGDFL();
         close(writerfd);
         if (dup2(readerfd,0) == -1) { // pipe becomes input for process2
+            close(readerfd);
             perror("dup2 failed");
             exit(1);
         }
+        close(readerfd);
         char** arglist2 = arglist + symbol_index + 1; // "|" is at index i, process2 starts at i+1
         while(errno == EINTR){}; // wait until process1 has done enough
         if (execvp(arglist2[0],arglist2) == -1) { // child2 becomes process2
@@ -105,29 +130,6 @@ int process_two(char** arglist, int symbol_index){
 }
 
 
-/* if & is used- the parent does not wait for child, therefore a zombie will be created.
- * this new handler for SIGCHLD "waits" for the finished child and therefore prevents zombies
- * reference: https://docs.oracle.com/cd/E19455-01/806-4750/signals-7/index.html
- */
-void sigchld_handler(){
-    int w = waitpid(-1, NULL, WNOHANG);
-    while(w>0){}
-    if (w == -1 && errno != ECHILD && errno != EINTR) {
-        perror("waiting failed");
-        exit(1);
-    }
-}
-
-void change_SIGCLD_handler(){
-    struct sigaction new_action;
-    memset(&new_action, 0, sizeof(new_action));
-    new_action.sa_handler = sigchld_handler;
-    if (sigaction(SIGCLD,&new_action,NULL) == SIG_ERR) {
-        perror("changing signal failed");
-        exit(1);
-    }
-}
-
 /*  actual_processing is called on for all command types except for pipe commands
  * input: arglist (cmd line in string array form), cmd_type (0-regular, 1-'&', 2-pipe, 3-'>'), symbol_index (&/>/| index in arglist)
  * behavior: invokes given command
@@ -142,18 +144,7 @@ int actual_processing(char** arglist, int cmd_type, int symbol_index){
         perror("fork failed");
         return 0;
     }
-    if (pid > 0 ){
-        // Father process
-        change_SIGCLD_handler();
-        if (cmd_type == 0 || cmd_type == 4){ // regular or >
-            int w = waitpid(pid, NULL, WUNTRACED);
-            if (w == -1 && errno != ECHILD && errno != EINTR) {
-                perror("waiting failed");
-                return 0;
-            }
-        }
-    }
-    else if (pid == 0) {
+    if (pid == 0) {
         // Child process, exit(1) or errors (from "Error handling 4")
         if (cmd_type == 3) {
             char *output_file_name = arglist[symbol_index + 1]; // ">" at index i, filename from i+1
@@ -170,6 +161,16 @@ int actual_processing(char** arglist, int cmd_type, int symbol_index){
         } if (execvp(arglist[0],arglist) == -1) { // child becomes the process
             perror("execvp failed");
             exit(1);
+        }
+    }
+    if (pid > 0){
+        // Father process
+        if (cmd_type == 0 || cmd_type == 4){ // regular or >
+            int w = waitpid(pid, NULL, WUNTRACED);
+            if (w == -1 && errno != ECHILD && errno != EINTR) {
+                perror("waiting failed");
+                return 0;
+            }
         }
     }
     return 1;
