@@ -105,18 +105,18 @@ int process_two(char** arglist, int symbol_index){
  * this new handler for SIGCHLD "waits" for the finished child and therefore prevents zombies
  * reference: https://docs.oracle.com/cd/E19455-01/806-4750/signals-7/index.html
  */
-void sigchld_handler(int child_pid){
-    int w = waitpid(child_pid, NULL, WHOHANG);
+void sigchld_handler(){
+    int w = waitpid(-1, NULL, WNOHANG);
     if (w == -1 && errno != ECHILD && errno != EINTR) {
         perror("waiting failed");
         exit(-1);
     }
 }
 
-void change_SIGCHLD_handler(int child_pid){
+void change_SIGCHLD_handler(){
     struct sigaction new_action;
     memset(&new_action, 0, sizeof(new_action));
-    new_action.sa_handler = sigchld_handler(child_pid);
+    new_action.sa_handler = sigchld_handler;
     if (sigaction(SIGCLD,&new_action,NULL) == -1) {
         perror("changing signal failed");
         exit(1);
@@ -159,7 +159,7 @@ int actual_processing(char** arglist, int cmd_type, int symbol_index){
     else {
         // Father process
         if (cmd_type == 1){
-           change_SIGCHLD_handler(pid);
+           change_SIGCHLD_handler();
         }
         if (cmd_type == 0 || cmd_type == 4){ // not pipe or &
             int w = waitpid(pid, NULL, WUNTRACED);
