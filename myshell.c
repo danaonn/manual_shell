@@ -39,7 +39,7 @@ int prepare(void){
     struct sigaction new_action;
     memset(&new_action, 0, sizeof(new_action));
     new_action.sa_handler = sigchld_handler;
-    sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+    new_action.sa_flags = SA_RESTART | SA_NOCLDSTOP;
     if (sigaction(SIGCLD,&new_action,0) == -1) {
         perror("changing signal failed");
         return 1;
