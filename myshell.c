@@ -19,6 +19,10 @@ int prepare(void){
         perror("changing signal failed");
         return 1;
     }
+    if (signal(SIGCLD, SIG_DFL) == SIG_ERR) {
+        perror("changing signal failed");
+        return 1;
+    }
     return 0;
 }
 
@@ -107,18 +111,18 @@ int process_two(char** arglist, int symbol_index){
  */
 void sigchld_handler(){
     int w = waitpid(-1, NULL, WNOHANG);
+    while(w>0){}
     if (w == -1 && errno != ECHILD && errno != EINTR) {
         perror("waiting failed");
         exit(1);
     }
-    signal(SIGCLD,SIG_DFL);
 }
 
-void change_SIGCHLD_handler(){
+void change_SIGCLD_handler(){
     struct sigaction new_action;
     memset(&new_action, 0, sizeof(new_action));
     new_action.sa_handler = sigchld_handler;
-    if (sigaction(SIGCLD,&new_action,NULL) == -1) {
+    if (sigaction(SIGCLD,&new_action,NULL) == SIG_ERR) {
         perror("changing signal failed");
         exit(1);
     }
@@ -137,6 +141,17 @@ int actual_processing(char** arglist, int cmd_type, int symbol_index){
     if (pid == -1) {
         perror("fork failed");
         return 0;
+    }
+    if (pid > 0 ){
+        // Father process
+        change_SIGCLD_handler();
+        if (cmd_type == 0 || cmd_type == 4){ // regular or >
+            int w = waitpid(pid, NULL, WUNTRACED);
+            if (w == -1 && errno != ECHILD && errno != EINTR) {
+                perror("waiting failed");
+                return 0;
+            }
+        }
     }
     else if (pid == 0) {
         // Child process, exit(1) or errors (from "Error handling 4")
@@ -157,24 +172,13 @@ int actual_processing(char** arglist, int cmd_type, int symbol_index){
             exit(1);
         }
     }
-    else {
-        // Father process
-        change_SIGCHLD_handler();
-        if (cmd_type == 0 || cmd_type == 4){ // regular or >
-            int w = waitpid(pid, NULL, WUNTRACED);
-            if (w == -1 && errno != ECHILD && errno != EINTR) {
-                perror("waiting failed");
-                return 0;
-            }
-        }
-    }
     return 1;
 }
 
 /* input: arglist (command line in a form or array of strings), count (num of words in the command line +1)
  * arglist[count] == NULL
  * arglist[count-1] is the last real element
- * behavior: marks cmd_type (0-regular, 1-'&', 2-pipe, 3-'>') and calls other functions to invoke command 
+ * behavior: marks cmd_type (0-regular, 1-'&', 2-pipe, 3-'>') and calls other functions to invoke command
  */
 int process_arglist(int count, char** arglist){
     int cmd_type = 0;
