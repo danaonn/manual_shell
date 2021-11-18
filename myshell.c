@@ -118,7 +118,7 @@ void change_SIGCHLD_handler(){
     struct sigaction new_action;
     memset(&new_action, 0, sizeof(new_action));
     new_action.sa_handler = sigchld_handler;
-    if (sigaction(SIGCLD,&new_action,NULL) == SIG_ERR) {
+    if (sigaction(SIGCLD,&new_action,NULL) == -1) {
         perror("changing signal failed");
         exit(1);
     }
