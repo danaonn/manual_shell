@@ -15,7 +15,7 @@
 /* behavior: changes the action for SIGINT (Cntr+C) to ignore instead of terminate
  * output: 1 when error, 0 on success (from 2.1 and  "Error handling 2" in assignment) */
 int prepare(void){
-    if (signal(SIGINT, SIG_IGN) == -1) {
+    if (signal(SIGINT, SIG_IGN) == SIG_ERR) {
         perror("changing signal failed");
         return 1;
     }
@@ -111,6 +111,7 @@ void sigchld_handler(){
         perror("waiting failed");
         exit(-1);
     }
+    signal(SIGCLD,SIG_DFL);
 }
 
 void change_SIGCHLD_handler(){
@@ -158,10 +159,8 @@ int actual_processing(char** arglist, int cmd_type, int symbol_index){
     }
     else {
         // Father process
-        if (cmd_type == 1){
-           change_SIGCHLD_handler();
-        }
-        if (cmd_type == 0 || cmd_type == 4){ // not pipe or &
+        change_SIGCHLD_handler();
+        if (cmd_type == 0 || cmd_type == 4){ // regular or >
             int w = waitpid(pid, NULL, WUNTRACED);
             if (w == -1 && errno != ECHILD && errno != EINTR) {
                 perror("waiting failed");
