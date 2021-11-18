@@ -27,15 +27,15 @@ void sigchld_handler(){
 }
 
 
-/* behavior: changes the action for SIGINT (Cntr+C) to ignore instead of terminate
+/* behavior: changes the action for SIGINT (Cntr+C) to ignore instead of terminate, changes the handler for SIGCLD to prevent zombies
  * output: 1 when error, 0 on success (from 2.1 and  "Error handling 2" in assignment) */
 int prepare(void){
-    // Change Sigint
+    // Change action for SIGINT
     if (signal(SIGINT, SIG_IGN) == SIG_ERR) {
         perror("changing signal failed");
         return 1;
     }
-    // Change Sigcld
+    // Change action for SIGCLD
     struct sigaction new_action;
     memset(&new_action, 0, sizeof(new_action));
     new_action.sa_handler = sigchld_handler;
@@ -47,7 +47,8 @@ int prepare(void){
     return 0;
 }
 
-/* is called from children that are not in & commmands */
+/* behavior: changes action for SIGINT back to default
+* is called from children that are not in & commmands */
 void SIGINT_action_to_SIGDFL(){
     if (signal(SIGINT, SIG_DFL) == SIG_ERR) { // change SIGINT action back to default
         perror("changing signal failed");
@@ -130,7 +131,7 @@ int process_two(char** arglist, int symbol_index){
 }
 
 
-/*  actual_processing is called on for all command types except for pipe commands
+/* actual_processing is called on for all command types except for pipe commands
  * input: arglist (cmd line in string array form), cmd_type (0-regular, 1-'&', 2-pipe, 3-'>'), symbol_index (&/>/| index in arglist)
  * behavior: invokes given command
  * output: 0 if error, 1 on success (like process_arglist)
