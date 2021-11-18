@@ -109,7 +109,7 @@ void sigchld_handler(){
     int w = waitpid(-1, NULL, WNOHANG);
     if (w == -1 && errno != ECHILD && errno != EINTR) {
         perror("waiting failed");
-        exit(-1);
+        exit(1);
     }
     signal(SIGCLD,SIG_DFL);
 }
@@ -118,7 +118,7 @@ void change_SIGCHLD_handler(){
     struct sigaction new_action;
     memset(&new_action, 0, sizeof(new_action));
     new_action.sa_handler = sigchld_handler;
-    if (sigaction(SIGCLD,&new_action,NULL) == -1) {
+    if (sigaction(SIGCLD,&new_action,NULL) == SIG_ERR) {
         perror("changing signal failed");
         exit(1);
     }
