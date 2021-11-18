@@ -57,7 +57,7 @@ int process_two(char** arglist, int symbol_index){
 	     close(writerfd);
             exit(1);
         }
-       if (execvp(arglist[0],arglist) == -1) { // grandchild1 becomes process1
+       if (execvp(arglist[0],arglist) == -1) { // child1 becomes process1
             perror("execvp failed");
             exit(1);
         }
@@ -81,19 +81,19 @@ int process_two(char** arglist, int symbol_index){
             exit(1);
         }
         char** arglist2 = arglist + symbol_index + 1; // "|" is at index i, process2 starts at i+1
-        if (execvp(arglist2[0],arglist2) == -1) { // child becomes process2
+        if (execvp(arglist2[0],arglist2) == -1) { // child2 becomes process2
             perror("execvp failed");
             exit(1);
         }
     }
     close(readerfd);
     close(writerfd);
-    int wait_one= waitpid(pid_one,NULL,WNOHANG | WUNTRACED);
+    int wait_one= waitpid(pid_one,NULL,0);
     if (wait_one == -1 &&  errno != ECHILD && errno != EINTR){
 	perror("waiting failed");
          return 0;
     }
-    int wait_two= waitpid(pid_two,NULL,WNOHANG | WUNTRACED);
+    int wait_two= waitpid(pid_two,NULL,0);
     if (wait_two == -1 && errno != ECHILD && errno != EINTR ) {
             	perror("waiting failed");
             	return 0;
